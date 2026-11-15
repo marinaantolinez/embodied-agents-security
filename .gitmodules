@@ -1,0 +1,3 @@
+[submodule "external/embodied-agents-tutorial"]
+    path = external/embodied-agents-tutorial
+    url = https://github.com/automatika-robotics/embodied-agents-tutorial.git
