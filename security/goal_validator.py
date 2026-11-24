@@ -3,8 +3,8 @@ import math
 
 class GoalValidator:
     """
-    Valida objetivos de navegación antes de permitir
-    que se envíen al sistema robótico.
+    Validates navigation goals before allowing them to be sent
+    to the robotic system.
     """
 
     def __init__(
@@ -24,13 +24,13 @@ class GoalValidator:
 
     def validate(self, goal):
         """
-        Recibe un geometry_msgs/PoseStamped.
+        Receives a geometry_msgs/PoseStamped.
 
         Returns:
-            (bool, str): resultado de la validación y motivo.
+            (bool, str): validation result and reason.
         """
 
-        # 1. Comprobar la estructura del mensaje.
+        # Check the structure of the PoseStamped message
         try:
             frame = goal.header.frame_id
             position = goal.pose.position
@@ -39,14 +39,14 @@ class GoalValidator:
         except AttributeError:
             return False, "Invalid goal message structure"
 
-        # 2. Comprobar el sistema de referencia.
+        # Check the reference frame
         if frame != self.expected_frame:
             return False, (
                 f"Invalid frame: expected '{self.expected_frame}', "
                 f"received '{frame}'"
             )
 
-        # 3. Comprobar que las coordenadas son válidas.
+        # Check that the coordinates are valid
         coordinates = [
             position.x,
             position.y,
@@ -60,14 +60,14 @@ class GoalValidator:
         except (TypeError, ValueError, OverflowError):
             return False, "Invalid coordinate values"
 
-        # 4. Comprobar los límites de navegación.
+        # Check the navigation boundaries.
         if not self.min_x <= position.x <= self.max_x:
             return False, "X coordinate outside allowed boundaries"
 
         if not self.min_y <= position.y <= self.max_y:
             return False, "Y coordinate outside allowed boundaries"
 
-        # 5. Comprobar que la orientación es válida.
+        # Check that the orientation is valid.
         quaternion = [
             orientation.x,
             orientation.y,

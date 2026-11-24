@@ -160,3 +160,70 @@ def test_tool_exception_does_not_escape():
     assert result is None
     assert agent.audit_log[-1]["allowed"] is True
     assert agent.audit_log[-1]["executed"] is False
+
+def test_tool_is_registered_when_wrapped():
+
+    agent = SecureAgent()
+
+    def get_coordinates(position: list[float]):
+        return position
+
+    agent.wrap_tool(
+        "get_coordinates",
+        get_coordinates,
+    )
+
+    assert agent.tool_registry.is_registered("get_coordinates")
+
+
+def test_unregistered_tool_cannot_execute():
+
+    agent = SecureAgent()
+
+    executed = False
+
+    def get_coordinates(position: list[float]):
+        nonlocal executed
+        executed = True
+        return position
+
+    protected_tool = agent.wrap_tool(
+        "get_coordinates",
+        get_coordinates,
+    )
+
+    # Remove the tool from the registry.
+    agent.tool_registry.unregister("get_coordinates")
+
+    result = protected_tool(
+        position=[1.0, 2.0, 0.0]
+    )
+
+    assert result is None
+    assert executed is False
+    assert agent.audit_log[-1]["allowed"] is False
+    assert agent.audit_log[-1]["executed"] is False
+    assert agent.audit_log[-1]["reason"] == "Tool is not registered"
+
+
+def test_duplicate_tool_registration_is_rejected():
+
+    agent = SecureAgent()
+
+    def get_coordinates(position: list[float]):
+        return position
+
+    agent.wrap_tool(
+        "get_coordinates",
+        get_coordinates,
+    )
+
+    try:
+        agent.wrap_tool(
+            "get_coordinates",
+            get_coordinates,
+        )
+        assert False, "Expected duplicate registration to fail"
+
+    except ValueError as error:
+        assert "already registered" in str(error)

@@ -2,16 +2,19 @@ import inspect
 from functools import wraps
 
 from security.policy_engine import PolicyEngine
+from security.tool_registry import ToolRegistry
 
 
 class SecureAgent:
     """
-    Interceptor de seguridad para las herramientas de EmbodiedAgents.
+    Wrapper that enforces security policies on agent tool executions.
+    It maintains a registry of tools and an audit log of execution attempts.
     """
 
     def __init__(self, agent=None, policy_engine=None):
         self.agent = agent
         self.policy_engine = policy_engine or PolicyEngine()
+        self.tool_registry = ToolRegistry()
         self.audit_log = []
 
     def _register_event(
@@ -22,8 +25,6 @@ class SecureAgent:
         reason,
         executed=False,
     ):
-        """Registra los intentos de ejecución."""
-
         event = {
             "tool": tool_name,
             "arguments": dict(arguments),
@@ -36,17 +37,22 @@ class SecureAgent:
 
     def wrap_tool(self, tool_name, tool_function):
         """
-        Envuelve una herramienta para comprobar sus permisos
-        antes de ejecutar la función original.
+        Register and wrap a tool with security checks.
         """
+
+        if not isinstance(tool_name, str) or not tool_name:
+            raise ValueError("Invalid tool name")
 
         if not callable(tool_function):
             raise TypeError("tool_function debe ser una función.")
 
+        # Register the tool before creating its protected wrapper.
+        self.tool_registry.register(tool_name)
+
         @wraps(tool_function)
         def protected_tool(*args, **kwargs):
 
-            # Recuperar y comprobar los argumentos.
+            # Retrieve and verify the arguments.
             try:
                 signature = inspect.signature(tool_function)
                 bound = signature.bind(*args, **kwargs)
@@ -64,7 +70,21 @@ class SecureAgent:
                 print(f"[SECURITY] BLOCKED: {tool_name} - {reason}")
                 return None
 
-            # Evaluar las políticas.
+            # Check whether the tool is registered.
+            if not self.tool_registry.is_registered(tool_name):
+                reason = "Tool is not registered"
+
+                self._register_event(
+                    tool_name,
+                    arguments,
+                    False,
+                    reason,
+                )
+
+                print(f"[SECURITY] BLOCKED: {tool_name} - {reason}")
+                return None
+
+            # Evaluate the security policy.
             try:
                 allowed, reason = self.policy_engine.check_tool(
                     tool_name,
@@ -86,7 +106,7 @@ class SecureAgent:
                 print(f"[SECURITY] BLOCKED: {tool_name} - {reason}")
                 return None
 
-            # Ejecutar la función autorizada.
+            # Execute the authorized function.
             try:
                 result = tool_function(*args, **kwargs)
 
@@ -102,8 +122,6 @@ class SecureAgent:
                 )
 
                 print(f"[SECURITY] ERROR: {tool_name} - {reason}")
-
-                # Fallo controlado: evitar publicar el resultado original.
                 return None
 
             self._register_event(
@@ -128,8 +146,7 @@ class SecureAgent:
         send_tool_response_to_model=False,
     ):
         """
-        Registra una herramienta protegida directamente
-        en un componente LLM de EmbodiedAgents.
+        Register a protected tool in an external component.
         """
 
         function_description = tool_description.get("function", {})
@@ -137,7 +154,7 @@ class SecureAgent:
 
         if not isinstance(tool_name, str) or not tool_name:
             raise ValueError(
-                "La descripción debe incluir function.name."
+                "The description must include function.name."
             )
 
         protected_tool = self.wrap_tool(
@@ -145,15 +162,18 @@ class SecureAgent:
             tool,
         )
 
-        component.register_tool(
-            tool=protected_tool,
-            tool_description=tool_description,
-            send_tool_response_to_model=send_tool_response_to_model,
-        )
+        try:
+            component.register_tool(
+                tool=protected_tool,
+                tool_description=tool_description,
+                send_tool_response_to_model=send_tool_response_to_model,
+            )
+
+        except Exception:
+            self.tool_registry.unregister(tool_name)
+            raise
 
         return protected_tool
 
     def get_audit_log(self):
-        """Devuelve una copia del registro de auditoría."""
-
         return list(self.audit_log)

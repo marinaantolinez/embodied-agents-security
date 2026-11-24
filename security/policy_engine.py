@@ -3,8 +3,8 @@ import math
 
 class PolicyEngine:
     """
-    Motor de políticas para controlar las herramientas
-    que puede ejecutar el agente.
+    Policy engine for controlling the tools
+    that the agent can execute.
     """
 
     def __init__(
