@@ -38,10 +38,12 @@ def test_out_of_bounds_tool_is_blocked():
 
     result = protected_tool(position=[10.0, 2.0, 0.0])
 
-    assert result is None
+    assert isinstance(result, str)
+    assert "X coordinate outside allowed boundaries" in result
     assert executed is False
 
     assert agent.audit_log[-1]["allowed"] is False
+    assert agent.audit_log[-1]["executed"] is False
 
 
 def test_unknown_tool_is_blocked():
@@ -62,10 +64,12 @@ def test_unknown_tool_is_blocked():
 
     result = protected_tool()
 
-    assert result is None
+    assert isinstance(result, str)
+    assert result.startswith("Operation rejected by security policy:")
     assert executed is False
 
     assert agent.audit_log[-1]["allowed"] is False
+    assert agent.audit_log[-1]["executed"] is False
 
 
 def test_audit_log_records_calls():
@@ -157,7 +161,8 @@ def test_tool_exception_does_not_escape():
         position=[1.0, 2.0, 0.0]
     )
 
-    assert result is None
+    assert isinstance(result, str)
+    assert result.startswith("Operation rejected by security policy:")
     assert agent.audit_log[-1]["allowed"] is True
     assert agent.audit_log[-1]["executed"] is False
 
@@ -199,7 +204,8 @@ def test_unregistered_tool_cannot_execute():
         position=[1.0, 2.0, 0.0]
     )
 
-    assert result is None
+    assert isinstance(result, str)
+    assert "Tool is not registered" in result
     assert executed is False
     assert agent.audit_log[-1]["allowed"] is False
     assert agent.audit_log[-1]["executed"] is False

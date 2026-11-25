@@ -37,6 +37,10 @@ class SecureAgent:
 
         self.audit_log.append(event)
 
+    def _rejection_message(self, reason):
+        """Return a publishable security rejection message."""
+        return f"Operation rejected by security policy: {reason}"
+
     def wrap_tool(self, tool_name, tool_function):
         """
         Register and wrap a tool with security checks.
@@ -70,7 +74,7 @@ class SecureAgent:
                 )
 
                 print(f"[SECURITY] BLOCKED: {tool_name} - {reason}")
-                return None
+                return self._rejection_message(reason)
 
             # Check whether the tool is registered.
             if not self.tool_registry.is_registered(tool_name):
@@ -84,7 +88,7 @@ class SecureAgent:
                 )
 
                 print(f"[SECURITY] BLOCKED: {tool_name} - {reason}")
-                return None
+                return self._rejection_message(reason)
 
             # Evaluate the security policy.
             try:
@@ -106,7 +110,7 @@ class SecureAgent:
                 )
 
                 print(f"[SECURITY] BLOCKED: {tool_name} - {reason}")
-                return None
+                return self._rejection_message(reason)
 
             # Execute the authorized function.
             try:
@@ -124,7 +128,7 @@ class SecureAgent:
                 )
 
                 print(f"[SECURITY] ERROR: {tool_name} - {reason}")
-                return None
+                return self._rejection_message(reason)
 
             self._register_event(
                 tool_name,
