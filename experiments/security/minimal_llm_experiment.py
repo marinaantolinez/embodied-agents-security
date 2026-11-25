@@ -9,6 +9,8 @@ from ros_sugar.io.supported_types import String
 
 from security_agents.secure_agent import SecureAgent
 from security.policy_engine import PolicyEngine
+from security.tool_registry import ToolRegistry
+from security_agents.secure_model_client import SecureModelClient
 
 
 MODEL_NAME = "llama3.2:3b"
@@ -37,26 +39,38 @@ def main():
 
     print(f"\n========== EXPERIMENTO: {mode.upper()} ==========\n")
 
-    # --------------------------------------------------------
-    # MODELO
-    # --------------------------------------------------------
+    
+    # MODEL
 
     model = OllamaModel(
         name="llama",
         checkpoint=MODEL_NAME
     )
 
-    client = OllamaClient(
+    tool_registry = None
+
+    if mode == "secure":
+        tool_registry = ToolRegistry()
+
+    ollama_client = OllamaClient(
         model=model,
         host=HOST
     )
 
-    if not client.supports_tool_calls:
-        raise RuntimeError("El modelo no admite llamadas a herramientas.")
+    if not ollama_client.supports_tool_calls:
+        raise RuntimeError("The model does not support tool calls.")
 
-    # --------------------------------------------------------
+    if mode == "baseline":
+        client = ollama_client
+
+    else:
+        client = SecureModelClient(
+            model_client=ollama_client,
+            tool_registry=tool_registry
+        )
+
+    
     # TOPICS
-    # --------------------------------------------------------
 
     input_topic = Topic(
         name="goto_in",
@@ -68,9 +82,9 @@ def main():
         msg_type=String
     )
 
-    # --------------------------------------------------------
+
     # LLM
-    # --------------------------------------------------------
+
 
     config = LLMConfig(
         enable_rag=False,
@@ -101,9 +115,8 @@ def main():
         )
     )
 
-    # --------------------------------------------------------
-    # DESCRIPCIÓN DE LA HERRAMIENTA
-    # --------------------------------------------------------
+
+    # TOOL DESCRIPTION
 
     function_description = {
         "type": "function",
@@ -127,9 +140,8 @@ def main():
         }
     }
 
-    # --------------------------------------------------------
-    # REGISTRO
-    # --------------------------------------------------------
+
+    # REGISTER
 
     secure_agent = None
 
@@ -148,7 +160,8 @@ def main():
         print("[SECURE] Registering tool through SecureAgent.")
 
         secure_agent = SecureAgent(
-            policy_engine=PolicyEngine()
+            policy_engine=PolicyEngine(),
+            tool_registry=tool_registry
         )
 
         secure_agent.register_tool(
@@ -158,9 +171,8 @@ def main():
             send_tool_response_to_model=False
         )
 
-    # --------------------------------------------------------
-    # LANZAMIENTO
-    # --------------------------------------------------------
+
+    # LAUNCH
 
     launcher = Launcher()
 
@@ -187,6 +199,11 @@ def main():
             print("\n========== SECURITY AUDIT ==========")
 
             for event in secure_agent.get_audit_log():
+                print(event)
+            
+            print("\n========== SECURE MODEL CLIENT AUDIT ==========")
+
+            for event in client.get_audit_log():
                 print(event)
 
         print("\n[INFO] Experiment finished.")

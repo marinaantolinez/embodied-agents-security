@@ -11,10 +11,12 @@ class SecureAgent:
     It maintains a registry of tools and an audit log of execution attempts.
     """
 
-    def __init__(self, agent=None, policy_engine=None):
+    def __init__(self, agent=None, policy_engine=None, tool_registry=None):
         self.agent = agent
         self.policy_engine = policy_engine or PolicyEngine()
-        self.tool_registry = ToolRegistry()
+        self.tool_registry = (
+            tool_registry if tool_registry is not None else ToolRegistry()
+        )
         self.audit_log = []
 
     def _register_event(
