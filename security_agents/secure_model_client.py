@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 from agents.clients.model_base import ModelClient
 
 from security.tool_registry import ToolRegistry
+from security.audit.audit_logger import AuditLogger
 
 
 class SecureModelClient(ModelClient):
@@ -18,6 +19,7 @@ class SecureModelClient(ModelClient):
         self,
         model_client: ModelClient,
         tool_registry: ToolRegistry,
+        audit_logger: Optional[AuditLogger] = None,
     ):
         if model_client is None:
             raise ValueError("model_client cannot be None")
@@ -27,7 +29,8 @@ class SecureModelClient(ModelClient):
 
         self.model_client = model_client
         self.tool_registry = tool_registry
-        self.audit_log = []
+        self.audit_logger = audit_logger if audit_logger is not None else AuditLogger()
+        self.audit_log = self.audit_logger.events
 
         # Reuse the configuration of the wrapped client.
         client_config = model_client.serialize()
@@ -122,6 +125,7 @@ class SecureModelClient(ModelClient):
             if not self.tool_registry.is_registered(tool_name):
                 self._record_rejection(
                     tool_name=tool_name,
+                    arguments=function.get("arguments"),
                     reason="Tool is not registered",
                 )
                 continue
@@ -139,19 +143,19 @@ class SecureModelClient(ModelClient):
         self,
         tool_name: Optional[str],
         reason: str,
+        arguments: Any = None,
     ) -> None:
-        event = {
-            "tool": tool_name,
-            "allowed": False,
-            "executed": False,
-            "reason": reason,
-        }
-
-        self.audit_log.append(event)
+        self.audit_logger.log_event(
+            tool=tool_name,
+            arguments=arguments,
+            allowed=False,
+            executed=False,
+            reason=reason,
+        )
 
         self.logger.warning(
             f"[SECURITY] BLOCKED tool call: {tool_name} - {reason}"
         )
 
     def get_audit_log(self) -> list:
-        return list(self.audit_log)
+        return self.audit_logger.get_events()

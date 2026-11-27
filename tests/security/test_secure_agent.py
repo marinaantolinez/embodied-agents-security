@@ -1,4 +1,5 @@
 from security_agents.secure_agent import SecureAgent
+from security.audit.audit_logger import AuditLogger
 
 
 def test_allowed_tool_is_executed():
@@ -233,3 +234,30 @@ def test_duplicate_tool_registration_is_rejected():
 
     except ValueError as error:
         assert "already registered" in str(error)
+
+
+def test_secure_agent_uses_shared_audit_logger():
+
+    audit_logger = AuditLogger()
+    agent = SecureAgent(audit_logger=audit_logger)
+
+    def get_coordinates(position: list[float]):
+        return position
+
+    protected_tool = agent.wrap_tool(
+        "get_coordinates",
+        get_coordinates,
+    )
+
+    protected_tool(position=[1.0, 2.0, 0.0])
+
+    events = audit_logger.get_events()
+
+    assert len(events) == 1
+    assert events[0]["tool"] == "get_coordinates"
+    assert events[0]["allowed"] is True
+    assert events[0]["executed"] is True
+    assert events[0]["timestamp"] is not None
+    assert "arguments" in events[0]
+    assert "reason" in events[0]
+    assert agent.audit_logger is audit_logger

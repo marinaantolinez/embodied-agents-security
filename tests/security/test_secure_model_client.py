@@ -1,4 +1,5 @@
 from security.tool_registry import ToolRegistry
+from security.audit.audit_logger import AuditLogger
 from security_agents.secure_model_client import SecureModelClient
 
 
@@ -263,3 +264,45 @@ def test_decision_capability_is_delegated():
     secure_client, _, _ = create_secure_client()
 
     assert secure_client.supports_decisions is False
+
+
+def test_secure_model_client_uses_shared_audit_logger():
+
+    fake_client = FakeModelClient()
+    registry = ToolRegistry()
+    registry.register("get_coordinates")
+
+    audit_logger = AuditLogger()
+
+    secure_client = SecureModelClient(
+        model_client=fake_client,
+        tool_registry=registry,
+        audit_logger=audit_logger,
+    )
+
+    fake_client.response = {
+        "tool_calls": [
+            {
+                "function": {
+                    "name": "execute_shell",
+                    "arguments": {"command": "test"},
+                }
+            }
+        ],
+        "output": "",
+    }
+
+    result = secure_client.inference({})
+
+    events = audit_logger.get_events()
+
+    assert "tool_calls" not in result
+    assert len(events) == 1
+    assert events[0]["tool"] == "execute_shell"
+    assert events[0]["arguments"] == {"command": "test"}
+    assert events[0]["allowed"] is False
+    assert events[0]["executed"] is False
+    assert events[0]["timestamp"] is not None
+    assert "arguments" in events[0]
+    assert "reason" in events[0]
+    assert secure_client.audit_logger is audit_logger

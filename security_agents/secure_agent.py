@@ -3,6 +3,7 @@ from functools import wraps
 
 from security.policy_engine import PolicyEngine
 from security.tool_registry import ToolRegistry
+from security.audit.audit_logger import AuditLogger
 
 
 class SecureAgent:
@@ -11,13 +12,14 @@ class SecureAgent:
     It maintains a registry of tools and an audit log of execution attempts.
     """
 
-    def __init__(self, agent=None, policy_engine=None, tool_registry=None):
+    def __init__(self, agent=None, policy_engine=None, tool_registry=None, audit_logger=None):
         self.agent = agent
         self.policy_engine = policy_engine or PolicyEngine()
         self.tool_registry = (
             tool_registry if tool_registry is not None else ToolRegistry()
         )
-        self.audit_log = []
+        self.audit_logger = audit_logger if audit_logger is not None else AuditLogger()
+        self.audit_log = self.audit_logger.events
 
     def _register_event(
         self,
@@ -27,15 +29,13 @@ class SecureAgent:
         reason,
         executed=False,
     ):
-        event = {
-            "tool": tool_name,
-            "arguments": dict(arguments),
-            "allowed": allowed,
-            "reason": reason,
-            "executed": executed,
-        }
-
-        self.audit_log.append(event)
+        self.audit_logger.log_event(
+            tool=tool_name,
+            arguments=arguments,
+            allowed=allowed,
+            executed=executed,
+            reason=reason,
+        )
 
     def _rejection_message(self, reason):
         """Return a publishable security rejection message."""
@@ -182,4 +182,4 @@ class SecureAgent:
         return protected_tool
 
     def get_audit_log(self):
-        return list(self.audit_log)
+        return self.audit_logger.get_events()

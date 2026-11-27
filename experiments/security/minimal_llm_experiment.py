@@ -10,6 +10,7 @@ from ros_sugar.io.supported_types import String
 from security_agents.secure_agent import SecureAgent
 from security.policy_engine import PolicyEngine
 from security.tool_registry import ToolRegistry
+from security.audit.audit_logger import AuditLogger
 from security_agents.secure_model_client import SecureModelClient
 
 
@@ -54,9 +55,11 @@ def main():
     )
 
     tool_registry = None
+    audit_logger = None
 
     if mode == "secure":
         tool_registry = ToolRegistry()
+        audit_logger = AuditLogger()
 
     ollama_client = OllamaClient(
         model=model,
@@ -72,7 +75,8 @@ def main():
     else:
         client = SecureModelClient(
             model_client=ollama_client,
-            tool_registry=tool_registry
+            tool_registry=tool_registry,
+            audit_logger=audit_logger,
         )
 
     
@@ -192,7 +196,8 @@ def main():
 
         secure_agent = SecureAgent(
             policy_engine=PolicyEngine(),
-            tool_registry=tool_registry
+            tool_registry=tool_registry,
+            audit_logger=audit_logger,
         )
 
         # Authorized tool: registered through SecureAgent.
@@ -237,14 +242,9 @@ def main():
 
         if secure_agent is not None:
 
-            print("\n========== SECURITY AUDIT ==========")
+            print("\n========== UNIFIED SECURITY AUDIT ==========")
 
-            for event in secure_agent.get_audit_log():
-                print(event)
-            
-            print("\n========== SECURE MODEL CLIENT AUDIT ==========")
-
-            for event in client.get_audit_log():
+            for event in audit_logger.get_events():
                 print(event)
 
         print("\n[INFO] Experiment finished.")
